@@ -1,0 +1,8 @@
+{
+    "id": "f263d32d-5b80-41b7-8300-5ab94ea42723",
+    "type": "feature",
+    "description": "Initial commit of repo module and changelog tools",
+    "modules": [
+        "."
+    ]
+}

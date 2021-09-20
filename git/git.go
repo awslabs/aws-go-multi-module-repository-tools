@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/awslabs/aws-go-multi-module-repository-tools/semver"
+	"github.com/awslabs/aws-go-multi-module-repository-tools/internal/semver"
 	"golang.org/x/mod/module"
 )
 

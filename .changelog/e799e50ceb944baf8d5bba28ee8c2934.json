@@ -1,0 +1,8 @@
+{
+    "id": "e799e50c-eb94-4baf-8d5b-ba28ee8c2934",
+    "type": "feature",
+    "description": "move semver fork to internal package",
+    "modules": [
+        "."
+    ]
+}

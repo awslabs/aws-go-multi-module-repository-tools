@@ -6,7 +6,7 @@ import (
 	"github.com/awslabs/aws-go-multi-module-repository-tools/changelog"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/git"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/gomod"
-	"github.com/awslabs/aws-go-multi-module-repository-tools/semver"
+	"github.com/awslabs/aws-go-multi-module-repository-tools/internal/semver"
 	"io/ioutil"
 	"log"
 	"os"

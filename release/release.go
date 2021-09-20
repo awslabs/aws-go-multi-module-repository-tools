@@ -11,7 +11,7 @@ import (
 	repotools "github.com/awslabs/aws-go-multi-module-repository-tools"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/changelog"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/git"
-	"github.com/awslabs/aws-go-multi-module-repository-tools/semver"
+	"github.com/awslabs/aws-go-multi-module-repository-tools/internal/semver"
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/module"
 )

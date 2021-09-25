@@ -30,7 +30,8 @@ type ModuleManifest struct {
 	From string `json:"from,omitempty"`
 	To   string `json:"to"`
 
-	Changes ModuleChange `json:"changes,omitempty"`
+	Changes     ModuleChange `json:"changes,omitempty"`
+	FileChanges []string     `json:"file_changes,omitempty"`
 
 	Annotations Annotations `json:"annotations,omitempty"`
 }
@@ -185,9 +186,9 @@ func incrementPrerelease(prerelease *string, identifier string) error {
 	return nil
 }
 
-// BuildReleaseManifest given a mapping of Go module paths to their Module descriptions, returns a summarized
-// manifest for release.
-func BuildReleaseManifest(id string, modules map[string]*Module) (rm Manifest, err error) {
+// BuildReleaseManifest given a mapping of Go module paths to their Module
+// descriptions, returns a summarized manifest for release.
+func BuildReleaseManifest(id string, modules map[string]*Module, verbose bool) (rm Manifest, err error) {
 	rm.ID = id
 
 	rm.Modules = make(map[string]ModuleManifest)
@@ -202,11 +203,17 @@ func BuildReleaseManifest(id string, modules map[string]*Module) (rm Manifest, e
 			return Manifest{}, err
 		}
 
+		var fileChanges []string
+		if verbose {
+			fileChanges = mod.FileChanges
+		}
+
 		mm := ModuleManifest{
 			ModulePath:  modulePath,
 			From:        mod.Latest,
 			To:          nextVersion,
 			Changes:     mod.Changes,
+			FileChanges: fileChanges,
 			Annotations: annotationsToIDs(mod.ChangeAnnotations),
 		}
 
@@ -256,6 +263,8 @@ type Module struct {
 	// The changes for the module
 	Changes ModuleChange
 
+	FileChanges []string
+
 	// The change note identifiers applicable for this module
 	ChangeAnnotations []changelog.Annotation
 
@@ -265,6 +274,21 @@ type Module struct {
 
 // ModuleChange is a bit field to describe the changes for a module
 type ModuleChange uint64
+
+// String returns the ModuleChange as a list of the change kinds.
+func (m ModuleChange) String() string {
+	var changes []string
+	if m&SourceChange != 0 {
+		changes = append(changes, "SourceChange")
+	}
+	if m&NewModule != 0 {
+		changes = append(changes, "NewModule")
+	}
+	if m&DependencyUpdate != 0 {
+		changes = append(changes, "DependencyUpdate")
+	}
+	return strings.Join(changes, ", ")
+}
 
 // MarshalJSON marshals the chnage bits into a structure JSON object.
 func (m ModuleChange) MarshalJSON() ([]byte, error) {

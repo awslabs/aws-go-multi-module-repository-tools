@@ -16,9 +16,11 @@ import (
 	"github.com/awslabs/aws-go-multi-module-repository-tools/release"
 )
 
+var verbose bool
 var outputFile string
 
 func init() {
+	flag.BoolVar(&verbose, "v", false, "output with verbose changes")
 	flag.StringVar(&outputFile, "o", "", "output file")
 }
 
@@ -53,6 +55,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	log.Println("Calculating module changes")
 	modulesForRelease, err := release.Calculate(discoverer, taggedModules, config, annotations)
 	if err != nil {
 		log.Fatal(err)
@@ -60,7 +63,7 @@ func main() {
 
 	id := release.NextReleaseID(tags)
 
-	manifest, err := release.BuildReleaseManifest(id, modulesForRelease)
+	manifest, err := release.BuildReleaseManifest(id, modulesForRelease, verbose)
 	if err != nil {
 		log.Fatal(err)
 	}

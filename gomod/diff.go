@@ -1,66 +1,80 @@
 package gomod
 
 import (
-	"path"
+	"path/filepath"
+	"sort"
 	"strings"
 )
 
-// IsModuleChanged returns whether the given set of changes applies to the module.
-// The submodules argument is must be lexicographically sorted list of submodule locations that are located
-// under moduleDir.
-func IsModuleChanged(moduleDir string, submodules []string, changes []string) (bool, error) {
-	if moduleDir == "." {
-		moduleDir = ""
-	} else {
-		// Append the path separator to ensure it is used in prefix matches. This ensure that we are looking
-		// at this specific directory and children rather then any directory that has this moduleDir prefix.
-		moduleDir += "/"
+// FilterModuleFiles will return a list of files that apply to this specific
+// module. Any file that is not relevant to this module will be excluded from
+// the returned list. List will be empty if there are no relevant files.
+func FilterModuleFiles(module *ModuleTreeNode, files []string) ([]string, error) {
+	type modDir struct {
+		filepaths []string
+		relevant  bool
 	}
+	dirCache := map[string]modDir{}
 
-	isChildPathCache := make(map[string]bool)
+	// Iterate through all files, building up a cache of files that are
+	// relevant. Filtering out directories that are not relevant to the current
+	// module.
+	for _, filepathName := range files {
+		dir, fileName := filepath.Split(filepathName)
+		dir = filepath.Clean(dir)
 
-	hasChanges := false
-
-	for i := 0; i < len(changes) && !hasChanges; i++ {
-		dir, fileName := path.Split(changes[i])
-
-		if len(dir) == 0 && moduleDir != "" {
+		// Only consider Go file or module files as relevant.
+		if !(IsGoSource(fileName) || IsGoMod(fileName)) {
 			continue
 		}
 
-		if len(moduleDir) > 0 && !strings.HasPrefix(dir, moduleDir) {
-			continue
-		}
-
-		if len(dir) == 0 && (IsGoSource(fileName) || IsGoMod(fileName)) {
-			hasChanges = true
-			continue
-		} else if !(IsGoSource(fileName) || IsGoMod(fileName)) {
-			continue
-		}
-		dir = path.Clean(dir)
-
-		if len(submodules) == 0 {
-			hasChanges = true
-			continue
-		}
-
-		if isChild, ok := isChildPathCache[dir]; !ok {
-			if IsSubmodulePath(dir, submodules) {
-				isChildPathCache[dir] = true
-			} else {
-				isChildPathCache[dir] = false
-				hasChanges = true
+		// Only need to consider paths for files that are relevant.
+		if v, ok := dirCache[dir]; ok {
+			if !v.relevant {
+				continue
 			}
-		} else if !isChild {
-			hasChanges = true
+
+			v.filepaths = append(v.filepaths, filepathName)
+			dirCache[dir] = v
+			continue
+		}
+
+		if !module.ParentOf(dir) {
+			dirCache[dir] = modDir{}
+			continue
+		}
+
+		dirCache[dir] = modDir{
+			relevant:  true,
+			filepaths: []string{filepathName},
 		}
 	}
 
-	return hasChanges, nil
+	var relevantFiles []string
+	for _, dir := range dirCache {
+		if !dir.relevant {
+			continue
+		}
+		relevantFiles = append(relevantFiles, dir.filepaths...)
+	}
+
+	sort.Strings(relevantFiles)
+	return relevantFiles, nil
 }
 
-// IsGoSource returns whether a given file name is a Go source code file ending in `.go`
+// IsModuleChanged returns whether the given set of changes applies to the
+// module directly, and not any of its sub modules.
+func IsModuleChanged(module *ModuleTreeNode, changes []string) (bool, error) {
+	changes, err := FilterModuleFiles(module, changes)
+	if err != nil {
+		return false, err
+	}
+
+	return len(changes) != 0, nil
+}
+
+// IsGoSource returns whether a given file name is a Go source code file ending
+// in `.go`
 func IsGoSource(name string) bool {
 	return !strings.HasPrefix(name, ".") && strings.HasSuffix(name, ".go")
 }

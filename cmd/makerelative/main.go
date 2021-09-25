@@ -31,8 +31,14 @@ func main() {
 	// Load Discovered Modules into Registry
 	var modules []string
 
-	for moduleDir := range discoverer.Modules() {
-		m := registry.MustLoad(moduleDir)
+	moduleTree := discoverer.Modules()
+	for it := moduleTree.Iterator(); ; {
+		module := it.Next()
+		if module == nil {
+			break
+		}
+
+		m := registry.MustLoad(module.AbsPath())
 		modules = append(modules, m.Module.Mod.Path)
 	}
 

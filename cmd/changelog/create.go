@@ -65,13 +65,10 @@ func runCreateCommand(args []string, repoRoot string) error {
 	discoverer := gomod.NewDiscoverer(repoRoot)
 
 	if err := discoverer.Discover(); err != nil {
-		return err
-	}
-
-	modules, err := discoverer.ModulesRel()
-	if err != nil {
 		return fmt.Errorf("failed to discover repository go modules: %w", err)
 	}
+
+	modules := discoverer.Modules()
 
 	if err := validateCreateCommandArguments(createFlagSet.Args(), modules); err != nil {
 		return fmt.Errorf("invalid arguments: %w", err)
@@ -85,6 +82,7 @@ func runCreateCommand(args []string, repoRoot string) error {
 
 	var commitChanges []string
 
+	var err error
 	if createCommand.Commit != "" {
 		commitChanges, err = git.Changed(repoRoot, createCommand.Commit)
 		if err != nil {
@@ -98,11 +96,16 @@ func runCreateCommand(args []string, repoRoot string) error {
 	}
 
 	if len(commitChanges) > 0 {
-		for moduleDir, submodules := range modules {
-			if isChanged, err := gomod.IsModuleChanged(moduleDir, submodules, commitChanges); err != nil {
+		for it := modules.Iterator(); ; {
+			module := it.Next()
+			if module == nil {
+				break
+			}
+
+			if changes, err := gomod.FilterModuleFiles(module, commitChanges); err != nil {
 				return err
-			} else if isChanged {
-				modulesToAnnotate[moduleDir] = struct{}{}
+			} else if len(changes) != 0 {
+				modulesToAnnotate[module.Path()] = struct{}{}
 			}
 		}
 	}
@@ -145,7 +148,7 @@ func runCreateCommand(args []string, repoRoot string) error {
 	return changelog.WriteAnnotation(repoRoot, annotation)
 }
 
-func interactiveEdit(annotation *changelog.Annotation, modules map[string][]string) error {
+func interactiveEdit(annotation *changelog.Annotation, modules *gomod.ModuleTree) error {
 	var issues []string
 
 	template, err := changelog.AnnotationToTemplate(*annotation)
@@ -196,16 +199,16 @@ func interactiveEdit(annotation *changelog.Annotation, modules map[string][]stri
 	return nil
 }
 
-func validateModules(input []string, modules map[string][]string) (invalid []string) {
-	for _, module := range input {
-		if _, ok := modules[module]; !ok {
-			invalid = append(invalid, module)
+func validateModules(input []string, modules *gomod.ModuleTree) (invalid []string) {
+	for _, moduleDir := range input {
+		if m := modules.Get(moduleDir); m == nil {
+			invalid = append(invalid, moduleDir)
 		}
 	}
 	return invalid
 }
 
-func validateCreateCommandArguments(args []string, modules map[string][]string) error {
+func validateCreateCommandArguments(args []string, modules *gomod.ModuleTree) error {
 	if createCommand.Commit != "" && (createCommand.CommitStart != "" || createCommand.CommitEnd != "") {
 		return fmt.Errorf("only -c can not be specified with -cs and -ce")
 	}
@@ -217,7 +220,7 @@ func validateCreateCommandArguments(args []string, modules map[string][]string) 
 
 	var unknown []string
 	for _, moduleDir := range args {
-		if _, ok := modules[moduleDir]; !ok {
+		if m := modules.Get(moduleDir); m == nil {
 			unknown = append(unknown, moduleDir)
 		}
 	}

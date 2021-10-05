@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+
 	"github.com/awslabs/aws-go-multi-module-repository-tools/changelog"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/gomod"
 )
@@ -26,13 +27,10 @@ func runEditCommand(args []string, repoRoot string) error {
 	discoverer := gomod.NewDiscoverer(repoRoot)
 
 	if err := discoverer.Discover(); err != nil {
-		return err
-	}
-
-	modules, err := discoverer.ModulesRel()
-	if err != nil {
 		return fmt.Errorf("failed to discover repository go modules: %w", err)
 	}
+
+	modules := discoverer.Modules()
 
 	args = editFlagSet.Args()
 	if len(args) == 0 || len(args) > 1 {

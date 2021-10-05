@@ -46,6 +46,10 @@
           "$ref": "#/$defs/moduleChanges",
           "description": "The changes detected for this module"
         },
+		"file_changes": {
+          "$ref": "#/$defs/moduleFileChanges",
+          "description": "The list of files that were detected as changed for this module"
+		},
         "annotations": {
           "type": "array",
           "description": "The changelog annotation identifiers that are associated with this module.",
@@ -78,6 +82,13 @@
         }
       }
     },
+	"moduleFileChanges": {
+		"type": "array",
+		"items": {
+			"type": "string",
+			"description": "The file that changed within a module"
+		}
+	},
     "annotationId": {
       "type": "string",
       "description": "The UUID identifier for a changelog annotation."

@@ -71,18 +71,20 @@ func main() {
 		}
 	}
 
-	modules, err := discoverer.ModulesRel()
-	if err != nil {
-		log.Fatalf("failed to get modules list: %v", err)
-	}
+	modules := discoverer.Modules()
+	for it := modules.Iterator(); ; {
+		module := it.Next()
+		if module == nil {
+			break
+		}
 
-	for modDir := range modules {
-		cfg := config.Modules[modDir]
-		dirPath := filepath.Join(repoRoot, modDir)
+		cfg := config.Modules[module.Path()]
+		dirPath := module.AbsPath()
 		if len(cfg.MetadataPackage) > 0 {
-			pkgRel := filepath.Join(modDir, cfg.MetadataPackage)
-			if gomod.IsSubmodulePath(pkgRel, modules[modDir]) {
-				log.Fatalf("%s metadata_package location must not be located in a sub-module", modDir)
+			pkgRel := filepath.Join(module.Path(), cfg.MetadataPackage)
+			if m := module.Search(pkgRel); m != nil {
+				log.Fatalf("%s metadata_package location must not be located in a sub-module",
+					module.Path())
 			}
 			dirPath = filepath.Join(repoRoot, pkgRel)
 		}
@@ -91,12 +93,12 @@ func main() {
 			log.Fatalf("failed to determine module go package: %v", err)
 		}
 		if len(goPackage) == 0 {
-			log.Printf("[WARN] unable to determine go package for %v...skipping", modDir)
+			log.Printf("[WARN] unable to determine go package for %v...skipping", module.Path())
 			continue
 		}
-		latest, isTagged := moduleTags.Latest(modDir)
+		latest, isTagged := moduleTags.Latest(module.Path())
 
-		if cfg, ok := config.Modules[modDir]; (ok && cfg.NoTag) || !isTagged {
+		if cfg, ok := config.Modules[module.Path()]; (ok && cfg.NoTag) || !isTagged {
 			latest = "tip"
 		}
 

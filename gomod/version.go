@@ -9,8 +9,9 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-// UpdateRequires updates all modules discovered starting at repoRootPath using the provided tags and dependencies.
-// Using force will update the module required versions regardless whether the target version less the currently
+// UpdateRequires updates all modules discovered starting at repoRootPath using
+// the provided tags and dependencies. Using force will update the module
+// required versions regardless whether the target version less the currently
 // written version.
 func UpdateRequires(repoRootPath string, tags git.ModuleTags, dependencies map[string]string, force bool) error {
 	discoverer := NewDiscoverer(repoRootPath)
@@ -19,24 +20,26 @@ func UpdateRequires(repoRootPath string, tags git.ModuleTags, dependencies map[s
 		return fmt.Errorf("failed to discover repository modules: %v", err)
 	}
 
-	modules, err := discoverer.ModulesRel()
-	if err != nil {
-		return err
-	}
+	modules := discoverer.Modules()
 
 	repoModules := make(map[string]struct {
 		ModuleDir string
 		File      *modfile.File
 	})
 
-	for moduleDir := range modules {
-		mod, err := LoadModuleFile(filepath.Join(discoverer.Root(), moduleDir), nil, true)
+	for it := modules.Iterator(); ; {
+		module := it.Next()
+		if module == nil {
+			break
+		}
+
+		mod, err := LoadModuleFile(module.Path(), nil, true)
 		if err != nil {
 			return fmt.Errorf("failed to load module file: %w", err)
 		}
 		rm := repoModules[mod.Module.Mod.Path]
 		rm.File = mod
-		rm.ModuleDir = moduleDir
+		rm.ModuleDir = module.Path()
 		repoModules[mod.Module.Mod.Path] = rm
 	}
 
@@ -67,7 +70,7 @@ func UpdateRequires(repoRootPath string, tags git.ModuleTags, dependencies map[s
 			}
 		}
 
-		if err = WriteModuleFile(filepath.Join(discoverer.Root(), mod.ModuleDir), mod.File); err != nil {
+		if err := WriteModuleFile(filepath.Join(discoverer.Root(), mod.ModuleDir), mod.File); err != nil {
 			return fmt.Errorf("failed to write module file: %w", err)
 		}
 	}

@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"golang.org/x/mod/modfile"
@@ -88,7 +87,7 @@ func WriteModuleFile(path string, file *modfile.File) (err error) {
 // Discoverer is used for discovering all modules and submodules at the provided path.
 type Discoverer struct {
 	path    string
-	modules map[string][]string
+	modules *ModuleTree
 }
 
 // NewDiscoverer constructs a new Discover for the given path.
@@ -104,106 +103,44 @@ func (d *Discoverer) Root() string {
 }
 
 // Modules returns the modules discovered after executing Discover.
-func (d *Discoverer) Modules() (v map[string][]string) {
-	v = make(map[string][]string)
-	for modulePath, children := range d.modules {
-		var c []string
-		if children != nil {
-			c := make([]string, 0, len(children))
-			copy(c, children)
-		}
-		v[modulePath] = c
-	}
-	return v
+func (d *Discoverer) Modules() *ModuleTree {
+	return d.modules
 }
 
-// ModulesRel returns the modules discovered after executing Discover. The returned module directory paths
-// will be made relative to the provided base path.
-func (d *Discoverer) ModulesRel() (v map[string][]string, err error) {
-	v = make(map[string][]string)
-	for modulePath, children := range d.modules {
-		rel, err := filepath.Rel(d.path, modulePath)
-		if err != nil {
-			return nil, err
-		}
-		var c []string
-		if len(children) > 0 {
-			c = make([]string, 0, len(children))
-			for i := range children {
-				rel, err := filepath.Rel(d.path, children[i])
-				if err != nil {
-					return nil, err
-				}
-				c = append(c, rel)
-			}
-		}
-		v[rel] = c
-	}
-	return v, nil
-}
-
-// Discover will find all modules starting from the path provided when constructing the Discoverer.
-// Does not iterate into testdata folders.
+// Discover will find all modules starting from the path provided when
+// constructing the Discoverer. Does not iterate into testdata folders.
+//
+// Any previous modules discovered by Discovery will be reset.
 func (d *Discoverer) Discover() error {
-	d.modules = make(map[string][]string)
+	d.modules = NewModuleTree(func(o *ModuleTreeOptions) {
+		o.RootPath = d.path
+	})
 
-	present, err := IsGoModPresent(d.path)
-	if err != nil {
-		return err
-	}
-
-	err = filepath.Walk(d.path, d.walkChildModules(d.path, present))
-	if err != nil {
-		return err
-	}
-
-	for modulePath := range d.modules {
-		if len(d.modules) > 0 {
-			sort.Strings(d.modules[modulePath])
-		}
-	}
-
-	return nil
+	return filepath.Walk(d.path, d.walkChildModules)
 }
 
-func (d *Discoverer) walkChildModules(parentPath string, isParentModule bool) func(path string, fs os.FileInfo, err error) error {
-	if isParentModule {
-		d.modules[parentPath] = nil
+func (d *Discoverer) walkChildModules(path string, fs os.FileInfo, err error) error {
+	if err != nil || !fs.IsDir() {
+		return err
 	}
 
-	return func(path string, fs os.FileInfo, err error) error {
-		if err != nil || path == parentPath {
-			return err
-		}
-
-		if !fs.IsDir() {
-			return nil
-		}
-
-		if fs.Name() == testDataFolder {
-			return filepath.SkipDir
-		}
-
-		present, err := IsGoModPresent(path)
-		if err != nil {
-			return err
-		}
-
-		if !present {
-			return nil
-		}
-
-		if isParentModule {
-			d.modules[parentPath] = append(d.modules[parentPath], path)
-		}
-
-		err = filepath.Walk(path, d.walkChildModules(path, true))
-		if err != nil {
-			return err
-		}
-
+	if fs.Name() == testDataFolder || strings.HasPrefix(fs.Name(), ".") {
 		return filepath.SkipDir
 	}
+
+	hasGoMod, err := IsGoModPresent(path)
+	if err != nil {
+		return err
+	}
+
+	if !hasGoMod {
+		return nil
+	}
+
+	if _, err = d.modules.Insert(path); err != nil {
+		return fmt.Errorf("unable to insert discovered module, %w", err)
+	}
+	return nil
 }
 
 // IsGoModPresent returns whether there is a go.mod file located in the provided directory path
@@ -215,21 +152,4 @@ func IsGoModPresent(path string) (bool, error) {
 		return false, err
 	}
 	return true, nil
-}
-
-// IsSubmodulePath determines if the given path falls within any of the submodules. Submodules MUST be a
-// sorted ascending list of paths.
-func IsSubmodulePath(path string, submodules []string) bool {
-	i := sort.Search(len(submodules), func(i int) bool {
-		return path <= submodules[i]
-	})
-
-	// Search returns where we would insert the given path, so we need to check if the returned index
-	// module matches our path, or if the previous index entry is a prefix to our current directory since
-	// nested directory paths would be sorted higher lexicographically
-	if (i < len(submodules) && path == submodules[i]) || i > 0 && strings.HasPrefix(path, submodules[i-1]) {
-		return true
-	}
-
-	return false
 }

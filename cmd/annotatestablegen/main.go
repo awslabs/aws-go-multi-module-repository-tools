@@ -2,16 +2,17 @@ package main
 
 import (
 	"encoding/json"
-	repotools "github.com/awslabs/aws-go-multi-module-repository-tools"
-	"github.com/awslabs/aws-go-multi-module-repository-tools/changelog"
-	"github.com/awslabs/aws-go-multi-module-repository-tools/git"
-	"github.com/awslabs/aws-go-multi-module-repository-tools/gomod"
-	"github.com/awslabs/aws-go-multi-module-repository-tools/internal/semver"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
+
+	repotools "github.com/awslabs/aws-go-multi-module-repository-tools"
+	"github.com/awslabs/aws-go-multi-module-repository-tools/changelog"
+	"github.com/awslabs/aws-go-multi-module-repository-tools/git"
+	"github.com/awslabs/aws-go-multi-module-repository-tools/gomod"
+	"github.com/awslabs/aws-go-multi-module-repository-tools/internal/semver"
 )
 
 const (
@@ -50,15 +51,20 @@ func main() {
 		log.Fatalf("failed to discover go modules: %v", err)
 	}
 
-	modules, err := discoverer.ModulesRel()
+	modules := discoverer.Modules()
 	if err != nil {
 		log.Fatalf("failed to get modules relative to repo: %v", err)
 	}
 
 	var toRelease []string
 
-	for modDir := range modules {
-		fullPath := filepath.Join(repoRoot, modDir)
+	for it := modules.Iterator(); ; {
+		module := it.Next()
+		if module == nil {
+			break
+		}
+
+		fullPath := module.AbsPath()
 
 		isGenerated, err := isGeneratedModule(fullPath)
 		if err != nil {
@@ -73,11 +79,11 @@ func main() {
 			log.Fatalf("failed to determine if generated module is stable: %v", err)
 		}
 
-		latest, ok := moduleTags.Latest(modDir)
+		latest, ok := moduleTags.Latest(module.Path())
 		if !ok && stable {
-			toRelease = append(toRelease, modDir)
+			toRelease = append(toRelease, module.Path())
 		} else if ok && stable && len(semver.Prerelease(latest)) > 0 {
-			toRelease = append(toRelease, modDir)
+			toRelease = append(toRelease, module.Path())
 		}
 	}
 

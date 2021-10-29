@@ -56,9 +56,11 @@ func main() {
 		}
 	}
 
-	releaseTag := fmt.Sprintf("release-%s", manifest.ID)
-	if err = git.Tag(repoRoot, releaseTag, message, "HEAD"); err != nil {
-		log.Fatalf("failed to create release tag %v: %v", releaseTag, err)
+	if manifest.WithReleaseTag {
+		releaseTag := fmt.Sprintf("release-%s", manifest.ID)
+		if err = git.Tag(repoRoot, releaseTag, message, "HEAD"); err != nil {
+			log.Fatalf("failed to create release tag %v: %v", releaseTag, err)
+		}
 	}
 }
 

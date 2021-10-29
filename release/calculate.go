@@ -15,8 +15,10 @@ import (
 
 // ModuleFinder is a type that searches for modules
 type ModuleFinder interface {
+	// Absolute Path of the root directory all modules are nested within.
 	Root() string
 
+	// Returns a tree of the known modules.
 	Modules() *gomod.ModuleTree
 }
 

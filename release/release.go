@@ -11,6 +11,7 @@ import (
 	repotools "github.com/awslabs/aws-go-multi-module-repository-tools"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/changelog"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/git"
+	"github.com/awslabs/aws-go-multi-module-repository-tools/gomod"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/internal/semver"
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/module"
@@ -18,9 +19,10 @@ import (
 
 // Manifest is a release description of changed modules and their associated tags to be released.
 type Manifest struct {
-	ID      string                    `json:"id"`
-	Modules map[string]ModuleManifest `json:"modules"`
-	Tags    []string                  `json:"tags"`
+	ID             string                    `json:"id"`
+	WithReleaseTag bool                      `json:"with_release_tag"`
+	Modules        map[string]ModuleManifest `json:"modules"`
+	Tags           []string                  `json:"tags"`
 }
 
 // ModuleManifest describes a changed module for release.
@@ -188,8 +190,9 @@ func incrementPrerelease(prerelease *string, identifier string) error {
 
 // BuildReleaseManifest given a mapping of Go module paths to their Module
 // descriptions, returns a summarized manifest for release.
-func BuildReleaseManifest(id string, modules map[string]*Module, verbose bool) (rm Manifest, err error) {
+func BuildReleaseManifest(moduleTree *gomod.ModuleTree, id string, modules map[string]*Module, verbose bool) (rm Manifest, err error) {
 	rm.ID = id
+	rm.WithReleaseTag = true
 
 	rm.Modules = make(map[string]ModuleManifest)
 
@@ -225,6 +228,21 @@ func BuildReleaseManifest(id string, modules map[string]*Module, verbose bool) (
 		}
 
 		rm.Tags = append(rm.Tags, moduleTag)
+	}
+
+	// Once all module next versions have discovered, update manifest if this
+	// is a single or multi module repository. Only multi-module repositories
+	// have a release tag created. Single module repositories use the root
+	// module's version for the release id.
+	if repoModuleList := moduleTree.List(); len(repoModuleList) == 1 {
+		rootModule, ok := rm.Modules[repoModuleList[0].Path()]
+		if !ok {
+			return Manifest{}, fmt.Errorf("root module metadata not found, %v, %v",
+				repoModuleList[0].Path(), rm.Modules)
+		}
+
+		rm.ID = rootModule.To
+		rm.WithReleaseTag = false
 	}
 
 	sort.Strings(rm.Tags)

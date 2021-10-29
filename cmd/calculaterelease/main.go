@@ -62,8 +62,7 @@ func main() {
 	}
 
 	id := release.NextReleaseID(tags)
-
-	manifest, err := release.BuildReleaseManifest(id, modulesForRelease, verbose)
+	manifest, err := release.BuildReleaseManifest(discoverer.Modules(), id, modulesForRelease, verbose)
 	if err != nil {
 		log.Fatal(err)
 	}

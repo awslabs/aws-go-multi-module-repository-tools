@@ -235,19 +235,38 @@ func BuildReleaseManifest(moduleTree *gomod.ModuleTree, id string, modules map[s
 	// have a release tag created. Single module repositories use the root
 	// module's version for the release id.
 	if repoModuleList := moduleTree.List(); len(repoModuleList) == 1 {
-		rootModule, ok := rm.Modules[repoModuleList[0].Path()]
-		if !ok {
-			return Manifest{}, fmt.Errorf("root module metadata not found, %v, %v",
-				repoModuleList[0].Path(), rm.Modules)
+		var singleModRepoID string
+		rootChangeModule, ok := rm.Modules[repoModuleList[0].Path()]
+		if ok {
+			singleModRepoID = rootChangeModule.To
+		} else {
+			rootRepoModule, ok := findModuleViaRelativeRepoPath(modules, repoModuleList[0].Path())
+			if !ok {
+				return Manifest{}, fmt.Errorf("root module metadata not found, %v, %v, %v",
+					repoModuleList[0].Path(), modules, rm.Modules)
+			}
+			singleModRepoID = rootRepoModule.Latest
 		}
 
-		rm.ID = rootModule.To
+		rm.ID = singleModRepoID
 		rm.WithReleaseTag = false
 	}
 
 	sort.Strings(rm.Tags)
 
 	return rm, nil
+}
+
+// Searches through the map of calculated module changes, for a module with the
+// relative repository path specified. If a module is found it will be returned.
+func findModuleViaRelativeRepoPath(modules map[string]*Module, relPath string) (*Module, bool) {
+	for _, v := range modules {
+		if v.RelativeRepoPath == relPath {
+			return v, true
+		}
+	}
+
+	return nil, false
 }
 
 // Annotations is a type alias for changelog.Annotation to control how annotations

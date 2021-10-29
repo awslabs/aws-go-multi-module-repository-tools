@@ -320,7 +320,7 @@ require (
 				},
 			},
 		},
-		"verbose multi-module": {
+		"multi-module verbose": {
 			ID:      "2021-10-27",
 			Verbose: true,
 			ModuleTree: func() *gomod.ModuleTree {
@@ -376,6 +376,45 @@ require (
 				},
 			},
 		},
+		"multi-module no-change": {
+			ID: "2021-10-27",
+			ModuleTree: func() *gomod.ModuleTree {
+				tree := gomod.NewModuleTree()
+				tree.InsertRel("")
+				tree.InsertRel("config")
+				return tree
+			}(),
+			Modules: map[string]*Module{
+				"github.com/aws/aws-sdk-go-v2": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("go.mod", strings.NewReader(sdkRootGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: ".",
+					Latest:           "v1.0.0",
+				},
+				"github.com/aws/aws-sdk-go-v2/config": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("config/go.mod", strings.NewReader(configGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: "config",
+					Latest:           "v1.0.0",
+				},
+			},
+			ExpectManifest: Manifest{
+				ID:             "2021-10-27",
+				WithReleaseTag: true,
+				Modules:        map[string]ModuleManifest{},
+				Tags:           nil,
+			},
+		},
 		"single-module": {
 			ID: "2021-10-27",
 			ModuleTree: func() *gomod.ModuleTree {
@@ -414,6 +453,33 @@ require (
 				Tags: []string{
 					"v1.2.4",
 				},
+			},
+		},
+		"single-module no-change": {
+			ID: "2021-10-27",
+			ModuleTree: func() *gomod.ModuleTree {
+				tree := gomod.NewModuleTree()
+				tree.InsertRel(".")
+				return tree
+			}(),
+			Modules: map[string]*Module{
+				"github.com/aws/smithy-go": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("go.mod", strings.NewReader(smithyGoRootGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: ".",
+					Latest:           "v1.2.3",
+				},
+			},
+			ExpectManifest: Manifest{
+				ID:             "v1.2.3",
+				WithReleaseTag: false,
+				Modules:        map[string]ModuleManifest{},
+				Tags:           nil,
 			},
 		},
 	}

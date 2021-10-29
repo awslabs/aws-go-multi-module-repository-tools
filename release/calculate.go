@@ -169,12 +169,6 @@ func Calculate(finder ModuleFinder, tags git.ModuleTags, config repotools.Config
 		return nil, err
 	}
 
-	for modulePath := range checkedModules {
-		if checkedModules[modulePath].Changes == 0 || config.Modules[modulePath].NoTag {
-			delete(checkedModules, modulePath)
-		}
-	}
-
 	return checkedModules, nil
 }
 

@@ -240,7 +240,7 @@ func BuildReleaseManifest(moduleTree *gomod.ModuleTree, id string, modules map[s
 		if ok {
 			singleModRepoID = rootChangeModule.To
 		} else {
-			rootRepoModule, ok := findModuleViaRelativeRepoPath(modules, repoModuleList[0].Path())
+			rootRepoModule, ok := FindModuleViaRelativeRepoPath(modules, repoModuleList[0].Path())
 			if !ok {
 				return Manifest{}, fmt.Errorf("root module metadata not found, %v, %v, %v",
 					repoModuleList[0].Path(), modules, rm.Modules)
@@ -257,9 +257,10 @@ func BuildReleaseManifest(moduleTree *gomod.ModuleTree, id string, modules map[s
 	return rm, nil
 }
 
-// Searches through the map of calculated module changes, for a module with the
-// relative repository path specified. If a module is found it will be returned.
-func findModuleViaRelativeRepoPath(modules map[string]*Module, relPath string) (*Module, bool) {
+// FindModuleViaRelativeRepoPath Searches through the map of calculated module
+// changes, for a module with the relative repository path specified. If a
+// module is found it will be returned.
+func FindModuleViaRelativeRepoPath(modules map[string]*Module, relPath string) (*Module, bool) {
 	for _, v := range modules {
 		if v.RelativeRepoPath == relPath {
 			return v, true

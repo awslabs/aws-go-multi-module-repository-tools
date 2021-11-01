@@ -1,2 +1,5 @@
-[modules."."]
-pre_release = "alpha"
+
+[modules]
+
+  [modules."."]
+    pre_release = "alpha"

@@ -14,20 +14,20 @@ const toolingConfigFile = "modman.toml"
 // ModuleConfig is the configuration for the repository module
 type ModuleConfig struct {
 	// Indicates that the given module should not be tagged (released)
-	NoTag bool `toml:"no_tag"`
+	NoTag bool `toml:"no_tag,omitempty"`
 
 	// The semver pre-release string for the module
-	PreRelease string `toml:"pre_release"`
+	PreRelease string `toml:"pre_release,omitempty"`
 
 	// The package alternative location relative to the module where the go_module_metadata.go should be written.
 	// By default this file is written in the location of the module root where the `go.mod` is located.
-	MetadataPackage string `toml:"metadata_package"`
+	MetadataPackage string `toml:"metadata_package,omitempty"`
 }
 
 // Config is a configuration file for describing how modules and dependencies are managed.
 type Config struct {
-	Modules      map[string]ModuleConfig `toml:"modules"`
-	Dependencies map[string]string       `toml:"dependencies"`
+	Modules      map[string]ModuleConfig `toml:"modules,omitempty"`
+	Dependencies map[string]string       `toml:"dependencies,omitempty"`
 }
 
 func newConfig() Config {

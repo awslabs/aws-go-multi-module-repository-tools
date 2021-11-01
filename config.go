@@ -1,11 +1,12 @@
 package repotools
 
 import (
-	"github.com/pelletier/go-toml"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/pelletier/go-toml"
 )
 
 const toolingConfigFile = "modman.toml"
@@ -29,11 +30,18 @@ type Config struct {
 	Dependencies map[string]string       `toml:"dependencies"`
 }
 
+func newConfig() Config {
+	return Config{
+		Modules:      map[string]ModuleConfig{},
+		Dependencies: map[string]string{},
+	}
+}
+
 // LoadConfig loads the tooling configuration file located in the directory path.
 func LoadConfig(path string) (Config, error) {
 	file, err := os.Open(filepath.Join(path, toolingConfigFile))
 	if err != nil && os.IsNotExist(err) {
-		return Config{}, nil
+		return newConfig(), nil
 	} else if err != nil {
 		return Config{}, err
 	}
@@ -43,12 +51,13 @@ func LoadConfig(path string) (Config, error) {
 }
 
 // ReadConfig reads the tooling configuration from the given reader.
-func ReadConfig(reader io.Reader) (c Config, err error) {
+func ReadConfig(reader io.Reader) (Config, error) {
 	all, err := ioutil.ReadAll(reader)
 	if err != nil {
-		return Config{}, nil
+		return Config{}, err
 	}
 
+	c := newConfig()
 	if err = toml.Unmarshal(all, &c); err != nil {
 		return Config{}, err
 	}
@@ -59,7 +68,7 @@ func ReadConfig(reader io.Reader) (c Config, err error) {
 // WriteConfig writes the tooling configuration to the given path.
 func WriteConfig(path string, config Config) (err error) {
 	var f *os.File
-	f, err = os.OpenFile(filepath.Join(path, toolingConfigFile), os.O_CREATE|os.O_TRUNC, 0644)
+	f, err = os.OpenFile(filepath.Join(path, toolingConfigFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}

@@ -1,10 +1,17 @@
 package release
 
 import (
-	repotools "github.com/awslabs/aws-go-multi-module-repository-tools"
-	"github.com/awslabs/aws-go-multi-module-repository-tools/changelog"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
+
+	repotools "github.com/awslabs/aws-go-multi-module-repository-tools"
+	"github.com/awslabs/aws-go-multi-module-repository-tools/changelog"
+	"github.com/awslabs/aws-go-multi-module-repository-tools/gomod"
+	"github.com/google/go-cmp/cmp"
+
+	"golang.org/x/mod/modfile"
 )
 
 type mockFinder struct {
@@ -223,6 +230,269 @@ func TestNextReleaseID(t *testing.T) {
 
 			if gotNext := NextReleaseID(tt.args.tags); gotNext != tt.wantNext {
 				t.Errorf("NextReleaseID() = %v, want %v", gotNext, tt.wantNext)
+			}
+		})
+	}
+}
+
+func TestBuildReleaseManifest(t *testing.T) {
+	const smithyGoRootGoMod = `module github.com/aws/smithy-go
+
+require (
+	github.com/google/go-cmp v0.5.6
+)
+
+go 1.15`
+	const sdkRootGoMod = `module github.com/aws/aws-sdk-go-v2
+
+require (
+	github.com/aws/smithy-go v1.8.1
+	github.com/google/go-cmp v0.5.6
+	github.com/jmespath/go-jmespath v0.4.0
+)
+
+go 1.15`
+	const configGoMod = `module github.com/aws/aws-sdk-go-v2/config
+
+go 1.15
+
+require (
+	github.com/aws/aws-sdk-go-v2 v1.10.0
+	github.com/google/go-cmp v0.5.6
+)`
+	cases := map[string]struct {
+		ModuleTree *gomod.ModuleTree
+		ID         string
+		Modules    map[string]*Module
+		Verbose    bool
+
+		ExpectManifest Manifest
+	}{
+		"multi-module": {
+			ID: "2021-10-27",
+			ModuleTree: func() *gomod.ModuleTree {
+				tree := gomod.NewModuleTree()
+				tree.InsertRel("")
+				tree.InsertRel("config")
+				return tree
+			}(),
+			Modules: map[string]*Module{
+				"github.com/aws/aws-sdk-go-v2": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("go.mod", strings.NewReader(sdkRootGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: ".",
+					Latest:           "v1.0.0",
+				},
+				"github.com/aws/aws-sdk-go-v2/config": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("config/go.mod", strings.NewReader(configGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: "config",
+					Latest:           "v1.0.0",
+					Changes:          SourceChange,
+					FileChanges: []string{
+						"config/foo.go",
+					},
+				},
+			},
+			ExpectManifest: Manifest{
+				ID:             "2021-10-27",
+				WithReleaseTag: true,
+				Modules: map[string]ModuleManifest{
+					"config": {
+						ModulePath: "github.com/aws/aws-sdk-go-v2/config",
+						From:       "v1.0.0",
+						To:         "v1.0.1",
+						Changes:    SourceChange,
+					},
+				},
+				Tags: []string{
+					"config/v1.0.1",
+				},
+			},
+		},
+		"multi-module verbose": {
+			ID:      "2021-10-27",
+			Verbose: true,
+			ModuleTree: func() *gomod.ModuleTree {
+				tree := gomod.NewModuleTree()
+				tree.InsertRel(".")
+				tree.InsertRel("config")
+				return tree
+			}(),
+			Modules: map[string]*Module{
+				"github.com/aws/aws-sdk-go-v2": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("go.mod", strings.NewReader(sdkRootGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: ".",
+					Latest:           "v1.0.0",
+				},
+				"github.com/aws/aws-sdk-go-v2/config": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("config/go.mod", strings.NewReader(configGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: "config",
+					Latest:           "v1.0.0",
+					Changes:          SourceChange,
+					FileChanges: []string{
+						"config/foo.go",
+					},
+				},
+			},
+			ExpectManifest: Manifest{
+				ID:             "2021-10-27",
+				WithReleaseTag: true,
+				Modules: map[string]ModuleManifest{
+					"config": {
+						ModulePath: "github.com/aws/aws-sdk-go-v2/config",
+						From:       "v1.0.0",
+						To:         "v1.0.1",
+						Changes:    SourceChange,
+						FileChanges: []string{
+							"config/foo.go",
+						},
+					},
+				},
+				Tags: []string{
+					"config/v1.0.1",
+				},
+			},
+		},
+		"multi-module no-change": {
+			ID: "2021-10-27",
+			ModuleTree: func() *gomod.ModuleTree {
+				tree := gomod.NewModuleTree()
+				tree.InsertRel("")
+				tree.InsertRel("config")
+				return tree
+			}(),
+			Modules: map[string]*Module{
+				"github.com/aws/aws-sdk-go-v2": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("go.mod", strings.NewReader(sdkRootGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: ".",
+					Latest:           "v1.0.0",
+				},
+				"github.com/aws/aws-sdk-go-v2/config": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("config/go.mod", strings.NewReader(configGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: "config",
+					Latest:           "v1.0.0",
+				},
+			},
+			ExpectManifest: Manifest{
+				ID:             "2021-10-27",
+				WithReleaseTag: true,
+				Modules:        map[string]ModuleManifest{},
+				Tags:           nil,
+			},
+		},
+		"single-module": {
+			ID: "2021-10-27",
+			ModuleTree: func() *gomod.ModuleTree {
+				tree := gomod.NewModuleTree()
+				tree.InsertRel(".")
+				return tree
+			}(),
+			Modules: map[string]*Module{
+				"github.com/aws/smithy-go": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("go.mod", strings.NewReader(smithyGoRootGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: ".",
+					Latest:           "v1.2.3",
+					Changes:          SourceChange,
+					FileChanges: []string{
+						"config/foo.go",
+					},
+				},
+			},
+			ExpectManifest: Manifest{
+				ID:             "v1.2.4",
+				WithReleaseTag: false,
+				Modules: map[string]ModuleManifest{
+					".": {
+						ModulePath: "github.com/aws/smithy-go",
+						From:       "v1.2.3",
+						To:         "v1.2.4",
+						Changes:    SourceChange,
+					},
+				},
+				Tags: []string{
+					"v1.2.4",
+				},
+			},
+		},
+		"single-module no-change": {
+			ID: "2021-10-27",
+			ModuleTree: func() *gomod.ModuleTree {
+				tree := gomod.NewModuleTree()
+				tree.InsertRel(".")
+				return tree
+			}(),
+			Modules: map[string]*Module{
+				"github.com/aws/smithy-go": {
+					File: func() *modfile.File {
+						f, err := gomod.ReadModule("go.mod", strings.NewReader(smithyGoRootGoMod), nil, false)
+						if err != nil {
+							panic(fmt.Errorf("expect no error reading module, %v", err).Error())
+						}
+						return f
+					}(),
+					RelativeRepoPath: ".",
+					Latest:           "v1.2.3",
+				},
+			},
+			ExpectManifest: Manifest{
+				ID:             "v1.2.3",
+				WithReleaseTag: false,
+				Modules:        map[string]ModuleManifest{},
+				Tags:           nil,
+			},
+		},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			manifest, err := BuildReleaseManifest(tt.ModuleTree, tt.ID, tt.Modules, tt.Verbose)
+			if err != nil {
+				t.Fatalf("expect no error, got %v", err)
+			}
+
+			if diff := cmp.Diff(tt.ExpectManifest, manifest); diff != "" {
+				t.Errorf("expect manifest match, got\n%s", diff)
 			}
 		})
 	}

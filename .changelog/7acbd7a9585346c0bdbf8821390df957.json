@@ -1,0 +1,8 @@
+{
+    "id": "7acbd7a9-5853-46c0-bdbf-8821390df957",
+    "type": "feature",
+    "description": "Update calculate release and tag release to not create release-YYYY-MM-DD releases for single module repositories.",
+    "modules": [
+        "."
+    ]
+}

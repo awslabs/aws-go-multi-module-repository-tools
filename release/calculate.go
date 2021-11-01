@@ -15,8 +15,10 @@ import (
 
 // ModuleFinder is a type that searches for modules
 type ModuleFinder interface {
+	// Absolute Path of the root directory all modules are nested within.
 	Root() string
 
+	// Returns a tree of the known modules.
 	Modules() *gomod.ModuleTree
 }
 
@@ -165,12 +167,6 @@ func Calculate(finder ModuleFinder, tags git.ModuleTags, config repotools.Config
 
 	if err := CalculateDependencyUpdates(checkedModules); err != nil {
 		return nil, err
-	}
-
-	for modulePath := range checkedModules {
-		if checkedModules[modulePath].Changes == 0 || config.Modules[modulePath].NoTag {
-			delete(checkedModules, modulePath)
-		}
 	}
 
 	return checkedModules, nil

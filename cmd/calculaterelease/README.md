@@ -52,10 +52,10 @@ Module Path | Latest Tag | Next Tag | Annotations | Config | Descriptions
 `github.com/aws/aws-sdk-go-v2/foo` | `foo/v1.0.0` | `foo/v1.0.1` | N/A | N/A | Modules with changes but no annotations default to patch bump
 `github.com/aws/aws-sdk-go-v2/foo` | `foo/v1.0.1` | `foo/v1.0.2` | `bugfix` | N/A | Modules with a bugfix annotation will increment the patch component.
 `github.com/aws/aws-sdk-go-v2/foo` | `foo/v1.0.2` | `foo/v1.1.0` | `feature` | N/A | Feature bump will increment the minor version component.
-`github.com/aws/aws-sdk-go-v2/foo` | `foo/v1.1.0` | `foo/v1.2.0-alpha` | N/A | `{"pre_release": "alpha"}` | The `pre_release` configuration can be used to mark the a modules next tagged release as a pre-release. Pre-release tags always imply a feature bump when calculating the preview version.
+`github.com/aws/aws-sdk-go-v2/foo` | `foo/v1.1.0` | `foo/v1.0.1-alpha` | N/A | `{"pre_release": "alpha"}` | The `pre_release` configuration can be used to mark the a modules next tagged release as a pre-release. Pre-release tags default to a patch bump when calculating the preview version.
 `github.com/aws/aws-sdk-go-v2/foo/v2` | N/A | `foo/v2.0.0-preview` | N/A | N/A | New repository modules with no annotations default to a preview release tag
-`github.com/aws/aws-sdk-go-v2/bar` | N/A | N/A | `release` | N/A | New repository modules can be marked with `release` annotation to be immediately tagged with non-pre-release tag.
-`github.com/aws/aws-sdk-go-v2/baz` | N/A | N/A | `feature` | `{"no_tag": true}` | Modules that are configured with`no_tag` will not be tagged regardless of whether there are Git changes or annotations.
+`github.com/aws/aws-sdk-go-v2/foo/v2` | N/A | `foo/v2.0.0` | `release` | N/A | New repository modules can be marked with `release` annotation to be immediately tagged with non-pre-release tag.
+`github.com/aws/aws-sdk-go-v2/baz` | N/A | N/A | `feature` | `{"no_tag": true}` | Modules that are configured with`no_tag` will not be tagged regardless of whether there are Git changes or annotations. Modules configured for no tagging can not be depended on by other modules within the repository, and will fail to compute a release otherwise.
 
 # Understanding a Release Manifest
 

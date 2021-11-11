@@ -16,11 +16,24 @@ import (
 	"github.com/awslabs/aws-go-multi-module-repository-tools/release"
 )
 
+type preReleaseFlag string
+
+func (p *preReleaseFlag) String() string {
+	return string(*p)
+}
+
+func (p *preReleaseFlag) Set(s string) error {
+	*p = preReleaseFlag(s)
+	return nil
+}
+
+var preview preReleaseFlag
 var verbose bool
 var outputFile string
 
 func init() {
 	flag.BoolVar(&verbose, "v", false, "output with verbose changes")
+	flag.Var(&preview, "preview", "indicates a semver pre-release should be calculated for all modules.")
 	flag.StringVar(&outputFile, "o", "", "output file")
 }
 
@@ -62,7 +75,7 @@ func main() {
 	}
 
 	id := release.NextReleaseID(tags)
-	manifest, err := release.BuildReleaseManifest(discoverer.Modules(), id, modulesForRelease, verbose)
+	manifest, err := release.BuildReleaseManifest(discoverer.Modules(), id, modulesForRelease, verbose, preview.String())
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -73,7 +73,7 @@ func main() {
 
 	if getUnreleasedVersion {
 		id := release.NextReleaseID(tags)
-		manifest, err := release.BuildReleaseManifest(discoverer.Modules(), id, checkedModules, false)
+		manifest, err := release.BuildReleaseManifest(discoverer.Modules(), id, checkedModules, false, "")
 		if err != nil {
 			log.Fatalf("failed to build release manifest, %v", err)
 		}

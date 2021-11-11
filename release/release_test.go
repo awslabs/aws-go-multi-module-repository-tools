@@ -29,10 +29,11 @@ func (m *mockFinder) ModulesRel() (map[string][]string, error) {
 
 func TestCalculateNextVersion(t *testing.T) {
 	type args struct {
-		modulePath  string
-		latest      string
-		config      repotools.ModuleConfig
-		annotations []changelog.Annotation
+		modulePath           string
+		latest               string
+		config               repotools.ModuleConfig
+		annotations          []changelog.Annotation
+		preReleaseIdentifier string
 	}
 	tests := map[string]struct {
 		args     args
@@ -99,10 +100,10 @@ func TestCalculateNextVersion(t *testing.T) {
 		"existing module version, set for pre-release": {
 			args: args{
 				modulePath: "github.com/aws/aws-sdk-go-v2/service/existing",
-				latest:     "v1.0.1",
+				latest:     "v1.2.1",
 				config:     repotools.ModuleConfig{PreRelease: "rc"},
 			},
-			wantNext: "v1.1.0-rc",
+			wantNext: "v1.2.2-rc",
 		},
 		"existing module preview version": {
 			args: args{
@@ -169,10 +170,91 @@ func TestCalculateNextVersion(t *testing.T) {
 			},
 			wantNext: "v1.1.1",
 		},
+		"new module using pre-release": {
+			args: args{
+				modulePath:           "github.com/aws/aws-sdk-go-v2/service/existing",
+				latest:               "",
+				preReleaseIdentifier: "rc",
+			},
+			wantNext: "v1.0.0-rc",
+		},
+		"new module using pre-release with release annotation": {
+			args: args{
+				modulePath:           "github.com/aws/aws-sdk-go-v2/service/existing",
+				latest:               "",
+				preReleaseIdentifier: "rc",
+				annotations: []changelog.Annotation{
+					{
+						Type: changelog.ReleaseChangeType,
+					},
+				},
+			},
+			wantNext: "v1.0.0-rc",
+		},
+		"existing module using pre-release with default bump": {
+			args: args{
+				modulePath:           "github.com/aws/aws-sdk-go-v2/service/existing",
+				latest:               "v1.2.3",
+				preReleaseIdentifier: "rc",
+			},
+			wantNext: "v1.2.4-rc",
+		},
+		"existing module using pre-release with patch bump": {
+			args: args{
+				modulePath:           "github.com/aws/aws-sdk-go-v2/service/existing",
+				latest:               "v1.2.3",
+				preReleaseIdentifier: "rc",
+				annotations: []changelog.Annotation{
+					{
+						Type: changelog.BugFixChangeType,
+					},
+				},
+			},
+			wantNext: "v1.2.4-rc",
+		},
+		"existing module using pre-release with minor bump": {
+			args: args{
+				modulePath:           "github.com/aws/aws-sdk-go-v2/service/existing",
+				latest:               "v1.2.3",
+				preReleaseIdentifier: "rc",
+				annotations: []changelog.Annotation{
+					{
+						Type: changelog.FeatureChangeType,
+					},
+				},
+			},
+			wantNext: "v1.3.0-rc",
+		},
+		"existing module using pre-release with release annotation": {
+			args: args{
+				modulePath:           "github.com/aws/aws-sdk-go-v2/service/existing",
+				latest:               "v1.2.3-preview",
+				preReleaseIdentifier: "rc",
+				annotations: []changelog.Annotation{
+					{
+						Type: changelog.ReleaseChangeType,
+					},
+				},
+			},
+			wantNext: "v1.2.3-rc",
+		},
+		"existing module with no pre-release semver using pre-release with release annotation": {
+			args: args{
+				modulePath:           "github.com/aws/aws-sdk-go-v2/service/existing",
+				latest:               "v1.2.3",
+				preReleaseIdentifier: "rc",
+				annotations: []changelog.Annotation{
+					{
+						Type: changelog.ReleaseChangeType,
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			gotNext, err := CalculateNextVersion(tt.args.modulePath, tt.args.latest, tt.args.config, tt.args.annotations)
+			gotNext, err := CalculateNextVersion(tt.args.modulePath, tt.args.latest, tt.args.config, tt.args.annotations, tt.args.preReleaseIdentifier)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CalculateNextVersion() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -265,6 +347,7 @@ require (
 		ID         string
 		Modules    map[string]*Module
 		Verbose    bool
+		PreRelease string
 
 		ExpectManifest Manifest
 	}{
@@ -486,7 +569,7 @@ require (
 
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
-			manifest, err := BuildReleaseManifest(tt.ModuleTree, tt.ID, tt.Modules, tt.Verbose)
+			manifest, err := BuildReleaseManifest(tt.ModuleTree, tt.ID, tt.Modules, tt.Verbose, tt.PreRelease)
 			if err != nil {
 				t.Fatalf("expect no error, got %v", err)
 			}

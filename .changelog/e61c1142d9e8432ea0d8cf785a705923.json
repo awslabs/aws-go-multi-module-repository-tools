@@ -1,0 +1,8 @@
+{
+    "id": "e61c1142-d9e8-432e-a0d8-cf785a705923",
+    "type": "feature",
+    "description": "Add support to ./cmd/calculaterelease for calculating a release for modified modules using the specified semver pre-release identifier.",
+    "modules": [
+        "."
+    ]
+}

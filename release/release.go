@@ -38,21 +38,28 @@ type ModuleManifest struct {
 	Annotations Annotations `json:"annotations,omitempty"`
 }
 
-func getNewModuleVersion(pathMajor string, increment changelog.SemVerIncrement, config repotools.ModuleConfig) (nextVersion string) {
+func getNewModuleVersion(pathMajor string, increment changelog.SemVerIncrement, config repotools.ModuleConfig, preReleaseIdentifier string) (nextVersion string) {
 	if len(pathMajor) == 0 {
 		nextVersion = "v1.0.0"
 	} else {
 		nextVersion = pathMajor + ".0.0"
 	}
 
+	isPreRelease := len(preReleaseIdentifier) > 0
+
 	// Special case, by default new modules will have a pre-release tag, unless we have a corresponding change
 	// annotation that marks the module for release.
-	if increment == changelog.ReleaseBump {
+	if increment == changelog.ReleaseBump && !isPreRelease {
 		return nextVersion
 	}
 
-	if len(config.PreRelease) > 0 {
-		nextVersion += "-" + config.PreRelease
+	identifier := config.PreRelease
+	if len(preReleaseIdentifier) > 0 {
+		identifier = preReleaseIdentifier
+	}
+
+	if len(identifier) > 0 {
+		nextVersion += "-" + identifier
 	} else {
 		nextVersion += "-preview"
 	}
@@ -62,7 +69,7 @@ func getNewModuleVersion(pathMajor string, increment changelog.SemVerIncrement, 
 
 // CalculateNextVersion calculates the next version for the module. The provided set of annotations must be applicable
 // for this specific module.
-func CalculateNextVersion(modulePath string, latest string, config repotools.ModuleConfig, annotations []changelog.Annotation) (next string, err error) {
+func CalculateNextVersion(modulePath string, latest string, config repotools.ModuleConfig, annotations []changelog.Annotation, preReleaseIdentifier string) (next string, err error) {
 	_, pathMajor, ok := module.SplitPathVersion(modulePath)
 	if !ok {
 		return "", fmt.Errorf("invalid module path")
@@ -71,8 +78,10 @@ func CalculateNextVersion(modulePath string, latest string, config repotools.Mod
 
 	increment := changelog.GetVersionIncrement(annotations)
 
+	isPreRelease := len(preReleaseIdentifier) > 0
+
 	if len(latest) == 0 {
-		next = getNewModuleVersion(pathMajor, increment, config)
+		next = getNewModuleVersion(pathMajor, increment, config, preReleaseIdentifier)
 		return next, nil
 	}
 
@@ -81,6 +90,72 @@ func CalculateNextVersion(modulePath string, latest string, config repotools.Mod
 		return "", fmt.Errorf("failed to parse semver: %v, %v", latest, parsed.Err)
 	}
 
+	if isPreRelease {
+		next, err = calculatePreReleaseVersion(parsed, increment, config, preReleaseIdentifier)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		next, err = calculateNextVersion(parsed, increment, config)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if semver.Compare(next, latest) <= 0 {
+		return "", fmt.Errorf("computed next version %s is not higher then %s", next, latest)
+	}
+
+	return next, nil
+}
+
+func calculatePreReleaseVersion(parsed semver.Parsed, increment changelog.SemVerIncrement, config repotools.ModuleConfig, preReleaseIdentifier string) (string, error) {
+	if increment == changelog.ReleaseBump || len(parsed.Prerelease) > 0 {
+		// For release bumps we append the pre-release identifier to the existing
+		// pre-release tag. This is due to larger set of fields in an identifier have higher precedence if all
+		// proceeding identifiers are equal.
+		// Examples (preReleaseIdentifier = "foo"):
+		//   v1.4.0-preview => v1.4.0-foo
+		parsed.Prerelease = formatPreRelease(preReleaseIdentifier)
+	} else {
+		// Example: v1.3.6 => v1.3.6-preview
+		switch increment {
+		case changelog.MinorBump:
+			// Examples (preReleaseIdentifier = "foo"):
+			//   v1.2.3 => v1.3.0-foo
+			if err := incrementStrInt(&parsed.Minor); err != nil {
+				return "", err
+			}
+			parsed.Patch = "0"
+		case changelog.DefaultBump:
+			fallthrough
+		case changelog.PatchBump:
+			//   v1.2.3 => v1.2.4-foo
+			if err := incrementStrInt(&parsed.Patch); err != nil {
+				return "", err
+			}
+		}
+
+		identifier := preReleaseIdentifier
+
+		if !strings.HasPrefix(identifier, "-") {
+			identifier = "-" + identifier
+		}
+
+		parsed.Prerelease = identifier
+	}
+
+	return parsed.String(), nil
+}
+
+func formatPreRelease(identifier string) string {
+	if !strings.HasPrefix(identifier, "-") {
+		identifier = "-" + identifier
+	}
+	return identifier
+}
+
+func calculateNextVersion(parsed semver.Parsed, increment changelog.SemVerIncrement, config repotools.ModuleConfig) (string, error) {
 	if increment == changelog.ReleaseBump {
 		// Release Bumps are used to elevate pre-release tag versions to released versions
 		// Examples:
@@ -105,20 +180,19 @@ func CalculateNextVersion(modulePath string, latest string, config repotools.Mod
 		// The latest tag was not a pre-release but module is configured for pre-release
 		// It is assumed that the target final version is intended to be a minor bump, so we simulate that here
 		// when constructing the pre-release tag.
-		// Example: v1.3.5 => v1.4.0-preview
+		// Example: v1.3.6 => v1.3.6-preview
 
-		if err := incrementStrInt(&parsed.Minor); err != nil {
+		if err := incrementStrInt(&parsed.Patch); err != nil {
 			return "", err
 		}
 
-		parsed.Patch = "0"
+		identifier := config.PreRelease
 
-		prerelease := config.PreRelease
-		if !strings.HasPrefix(prerelease, "-") {
-			prerelease = "-" + prerelease
+		if !strings.HasPrefix(identifier, "-") {
+			identifier = "-" + identifier
 		}
 
-		parsed.Prerelease = prerelease
+		parsed.Prerelease = identifier
 
 	} else if increment == changelog.MinorBump {
 		// Module should be bumped by a minor version
@@ -136,13 +210,7 @@ func CalculateNextVersion(modulePath string, latest string, config repotools.Mod
 		}
 	}
 
-	next = parsed.String()
-
-	if semver.Compare(next, latest) <= 0 {
-		return "", fmt.Errorf("computed next version %s is not higher then %s", next, latest)
-	}
-
-	return next, nil
+	return parsed.String(), nil
 }
 
 func incrementStrInt(v *string) error {
@@ -190,7 +258,7 @@ func incrementPrerelease(prerelease *string, identifier string) error {
 
 // BuildReleaseManifest given a mapping of Go module paths to their Module
 // descriptions, returns a summarized manifest for release.
-func BuildReleaseManifest(moduleTree *gomod.ModuleTree, id string, modules map[string]*Module, verbose bool) (rm Manifest, err error) {
+func BuildReleaseManifest(moduleTree *gomod.ModuleTree, id string, modules map[string]*Module, verbose bool, preRelease string) (rm Manifest, err error) {
 	rm.ID = id
 	rm.WithReleaseTag = true
 
@@ -201,7 +269,7 @@ func BuildReleaseManifest(moduleTree *gomod.ModuleTree, id string, modules map[s
 			continue
 		}
 
-		nextVersion, err := CalculateNextVersion(modulePath, mod.Latest, mod.ModuleConfig, mod.ChangeAnnotations)
+		nextVersion, err := CalculateNextVersion(modulePath, mod.Latest, mod.ModuleConfig, mod.ChangeAnnotations, preRelease)
 		if err != nil {
 			return Manifest{}, err
 		}

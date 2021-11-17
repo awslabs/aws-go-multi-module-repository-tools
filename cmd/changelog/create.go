@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"os"
 	"sort"
 	"strings"
 
@@ -32,7 +35,8 @@ var createCommand = struct {
 
 	Type ChangeType
 
-	Description string
+	Description     string
+	DescriptionFile string
 
 	Collapse bool
 
@@ -51,6 +55,7 @@ var createFlagSet = func() *flag.FlagSet {
 	fs.StringVar(&createCommand.CommitEnd, "ce", "", "")
 	fs.Var(&createCommand.Type, "t", "")
 	fs.StringVar(&createCommand.Description, "d", "", "")
+	fs.StringVar(&createCommand.DescriptionFile, "df", "", "")
 	fs.BoolVar(&createCommand.Collapse, "r", false, "")
 	fs.BoolVar(&createCommand.NonInteractive, "ni", false, "")
 
@@ -120,7 +125,25 @@ func runCreateCommand(args []string, repoRoot string) error {
 		annotation.Type = changelog.BugFixChangeType
 	}
 
-	annotation.Description = createCommand.Description
+	if len(createCommand.DescriptionFile) > 0 {
+		if createCommand.DescriptionFile == "-" {
+			buff := &bytes.Buffer{}
+			_, err := io.Copy(buff, os.Stdin)
+			if err != nil {
+				return err
+			}
+			annotation.Description = buff.String()
+		} else {
+			fileBytes, err := os.ReadFile(createCommand.DescriptionFile)
+			if err != nil {
+				return err
+			}
+			annotation.Description = string(fileBytes)
+		}
+	} else {
+		annotation.Description = createCommand.Description
+	}
+
 	annotation.Collapse = createCommand.Collapse
 
 	if len(modulesToAnnotate) > 0 {

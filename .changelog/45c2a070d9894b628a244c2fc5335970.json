@@ -1,0 +1,8 @@
+{
+    "id": "45c2a070-d989-4b62-8a24-4c2fc5335970",
+    "type": "bugfix",
+    "description": "Add support for reading a changelog description from a file or stdin.",
+    "modules": [
+        "."
+    ]
+}

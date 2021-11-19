@@ -16,15 +16,20 @@ import (
 
 var (
 	getUnreleasedVersion bool
+	preview              preReleaseFlag
 )
 
 func init() {
 	flag.BoolVar(&getUnreleasedVersion, "unreleased", false,
 		"Returns the version the projected version the module will be at after the next release")
+	flag.Var(&preview, "preview",
+		"Indicates a semver pre-release should be calculated when specified with the -unreleased flag.")
 
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s [-unreleased] module\n", filepath.Base(os.Args[0]))
-		fmt.Fprintf(flag.CommandLine.Output(), "  module\n\tThe relative path of the module to get the version of.\n")
+		fmt.Fprintf(flag.CommandLine.Output(), `Usage of %s [-unreleased] <module>
+  module
+	The relative path of the module to get the version of.
+`, filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
 }
@@ -73,7 +78,7 @@ func main() {
 
 	if getUnreleasedVersion {
 		id := release.NextReleaseID(tags)
-		manifest, err := release.BuildReleaseManifest(discoverer.Modules(), id, checkedModules, false, "")
+		manifest, err := release.BuildReleaseManifest(discoverer.Modules(), id, checkedModules, false, preview.String())
 		if err != nil {
 			log.Fatalf("failed to build release manifest, %v", err)
 		}
@@ -98,4 +103,15 @@ func main() {
 		moduleVersion = "v0.0.0-00010101000000-000000000000"
 	}
 	fmt.Println(moduleVersion)
+}
+
+type preReleaseFlag string
+
+func (p *preReleaseFlag) String() string {
+	return string(*p)
+}
+
+func (p *preReleaseFlag) Set(s string) error {
+	*p = preReleaseFlag(s)
+	return nil
 }

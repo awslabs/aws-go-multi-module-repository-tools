@@ -37,6 +37,11 @@ func main() {
 		log.Fatalf("failed to load release manifest file: %v", err)
 	}
 
+	if len(manifest.Tags) == 0 {
+		log.Println("manifest contains no tags for release...skipping changelog generation")
+		os.Exit(0)
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("failed to get current working directory: %v", err)

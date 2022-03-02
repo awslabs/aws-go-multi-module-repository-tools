@@ -71,7 +71,18 @@ func ReadManifest(reader io.Reader) (m Manifest, err error) {
 // SmithyArtifactPaths is a slice of smithy-go build artifacts.
 // See the Walk method which can be used for finding the generated Go
 // source code from the Smithy build plugins projection.
-type SmithyArtifactPaths []string
+type SmithyArtifactPaths struct {
+	pluginDirectory string
+	paths           []string
+}
+
+// NewSmithyArtifactPaths initializes the SmithyArtifactPaths for the plugin
+// directory modules should be generated from.
+func NewSmithyArtifactPaths(pluginDir string) *SmithyArtifactPaths {
+	return &SmithyArtifactPaths{
+		pluginDirectory: pluginDir,
+	}
+}
 
 // Walk is a filepath.WalkFunc compatible method that can be used for finding
 // smithy-go plugin build artifacts.
@@ -84,7 +95,7 @@ func (a *SmithyArtifactPaths) Walk(path string, info os.FileInfo, err error) err
 		return nil
 	}
 
-	pluginOutput := filepath.Join(path, "go-codegen")
+	pluginOutput := filepath.Join(path, a.pluginDirectory)
 	stat, err := os.Stat(pluginOutput)
 	if err != nil {
 		return nil
@@ -94,7 +105,12 @@ func (a *SmithyArtifactPaths) Walk(path string, info os.FileInfo, err error) err
 		return nil
 	}
 
-	*a = append(*a, pluginOutput)
+	a.paths = append(a.paths, pluginOutput)
 
 	return filepath.SkipDir
+}
+
+// WalkedPaths returns a copy of the artifact paths that were found.
+func (a *SmithyArtifactPaths) ArtifactPaths() []string {
+	return append([]string{}, a.paths...)
 }

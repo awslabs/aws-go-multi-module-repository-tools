@@ -21,10 +21,13 @@ const manifestFileName = "generated.json"
 
 var config = struct {
 	BuildArtifactPath string
+	PluginDirectory   string
 }{}
 
 func init() {
 	flag.StringVar(&config.BuildArtifactPath, "build", "", "build artifact path")
+	flag.StringVar(&config.PluginDirectory, "plugin-dir", "go-codegen",
+		"path individual module source is nested under build artifact.")
 }
 
 func main() {
@@ -55,17 +58,18 @@ func main() {
 		log.Fatalf("unable to determine repo root module path, %v", err)
 	}
 
-	av := manifest.SmithyArtifactPaths{}
+	av := manifest.NewSmithyArtifactPaths(config.PluginDirectory)
 	if err = filepath.Walk(config.BuildArtifactPath, av.Walk); err != nil {
 		log.Fatalf("failed to walk build artifacts: %v", err)
 	}
 
-	if len(av) == 0 {
+	artifactPaths := av.ArtifactPaths()
+	if len(artifactPaths) == 0 {
 		log.Printf("no build artifacts found: %v", err)
 		return
 	}
 
-	if err := copyBuildArtifacts(av, rootModulePath, repoRoot); err != nil {
+	if err := copyBuildArtifacts(artifactPaths, rootModulePath, repoRoot); err != nil {
 		log.Fatalf("failed to copy build artifacts: %v", err)
 	}
 }

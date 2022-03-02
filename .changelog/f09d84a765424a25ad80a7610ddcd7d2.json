@@ -1,0 +1,8 @@
+{
+    "id": "f09d84a7-6542-4a25-ad80-a7610ddcd7d2",
+    "type": "feature",
+    "description": "cmd/gomodgen: Adds configurable support for additional SmithyArtifact generator plugins in addition to go-codegen.",
+    "modules": [
+        "."
+    ]
+}

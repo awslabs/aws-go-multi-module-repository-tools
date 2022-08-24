@@ -20,14 +20,20 @@ import (
 const manifestFileName = "generated.json"
 
 var config = struct {
-	BuildArtifactPath string
-	PluginDirectory   string
+	BuildArtifactPath      string
+	PluginDirectory        string
+	CopyArtifact           bool
+	PrepareTargetDirectory bool
 }{}
 
 func init() {
 	flag.StringVar(&config.BuildArtifactPath, "build", "", "build artifact path")
 	flag.StringVar(&config.PluginDirectory, "plugin-dir", "go-codegen",
 		"path individual module source is nested under build artifact.")
+	flag.BoolVar(&config.CopyArtifact, "copy-artifact", true,
+		"copies the artifact from the build path to the repo root relative to the artifact's import path")
+	flag.BoolVar(&config.PrepareTargetDirectory, "prepare-target-dir", true,
+		"initializes the target directory, deleting previously generated files.")
 }
 
 func main() {
@@ -69,12 +75,12 @@ func main() {
 		return
 	}
 
-	if err := copyBuildArtifacts(artifactPaths, rootModulePath, repoRoot); err != nil {
+	if err := createArtifactModule(artifactPaths, rootModulePath, repoRoot); err != nil {
 		log.Fatalf("failed to copy build artifacts: %v", err)
 	}
 }
 
-func copyBuildArtifacts(paths []string, rootModulePath string, repoRoot string) error {
+func createArtifactModule(paths []string, rootModulePath string, repoRoot string) error {
 	for _, artifactPath := range paths {
 		buildManifest, err := manifest.LoadManifest(filepath.Join(artifactPath, manifestFileName))
 		if err != nil {
@@ -84,18 +90,28 @@ func copyBuildArtifacts(paths []string, rootModulePath string, repoRoot string) 
 			return fmt.Errorf("%v is not a sub-module of %v", buildManifest.Module, rootModulePath)
 		}
 
-		moduleRelativePath := strings.TrimPrefix(strings.TrimPrefix(buildManifest.Module, rootModulePath), "/")
-		if moduleRelativePath == "" {
-			moduleRelativePath = "."
+		var targetPath string
+		if config.CopyArtifact {
+			moduleRelativePath := strings.TrimPrefix(strings.TrimPrefix(buildManifest.Module, rootModulePath), "/")
+			if moduleRelativePath == "" {
+				moduleRelativePath = "."
+			}
+			targetPath = filepath.Join(repoRoot, moduleRelativePath)
+
+		} else {
+			targetPath = filepath.Join(config.BuildArtifactPath, config.PluginDirectory)
 		}
 
-		targetPath := filepath.Join(repoRoot, moduleRelativePath)
-		if err := prepareTargetDirectory(targetPath, buildManifest); err != nil {
-			return fmt.Errorf("failed to prepare target directory: %w", err)
+		if config.PrepareTargetDirectory {
+			if err := prepareTargetDirectory(targetPath, buildManifest); err != nil {
+				return fmt.Errorf("failed to prepare target directory: %w", err)
+			}
 		}
 
-		if err := copyBuildArtifactToPath(artifactPath, targetPath, buildManifest); err != nil {
-			return fmt.Errorf("failed to copy build artifact to target: %w", err)
+		if config.CopyArtifact {
+			if err := copyBuildArtifactToPath(artifactPath, targetPath, buildManifest); err != nil {
+				return fmt.Errorf("failed to copy build artifact to target: %w", err)
+			}
 		}
 
 		generated, err := generateModuleDefinition(buildManifest)

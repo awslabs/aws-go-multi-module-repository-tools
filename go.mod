@@ -3,10 +3,10 @@ module github.com/awslabs/aws-go-multi-module-repository-tools
 go 1.17
 
 require (
-	github.com/google/go-cmp v0.5.6
+	github.com/google/go-cmp v0.5.9
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/pelletier/go-toml v1.9.0
-	golang.org/x/mod v0.4.2
+	github.com/pelletier/go-toml v1.9.5
+	golang.org/x/mod v0.5.1
 )
 
 require (

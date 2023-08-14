@@ -84,10 +84,6 @@ func getDependencies(path string) (map[string]string, error) {
 }
 
 func getRepoTags(path string) (git.ModuleTags, error) {
-	if err := git.Fetch(path); err != nil {
-		return nil, fmt.Errorf("fetch: %v", err)
-	}
-
 	tags, err := git.Tags(path)
 	if err != nil {
 		return nil, fmt.Errorf("tags: %v", err)

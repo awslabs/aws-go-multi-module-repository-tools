@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
+
 	repotools "github.com/awslabs/aws-go-multi-module-repository-tools"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/git"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/gomod"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/release"
-	"io/ioutil"
-	"log"
 )
 
 var config = struct {
@@ -83,13 +84,9 @@ func getDependencies(path string) (map[string]string, error) {
 }
 
 func getRepoTags(path string) (git.ModuleTags, error) {
-	if err := git.Fetch(path); err != nil {
-		return nil, err
-	}
-
 	tags, err := git.Tags(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tags: %v", err)
 	}
 
 	return git.ParseModuleTags(tags), nil

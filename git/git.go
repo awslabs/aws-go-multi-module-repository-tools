@@ -38,12 +38,6 @@ func Tags(path string) ([]string, error) {
 	return splitOutput(string(output)), nil
 }
 
-// Fetch fetches all objects and refs for the Git repository located at path
-func Fetch(path string) error {
-	_, err := Git(path, "fetch", "--all")
-	return err
-}
-
 // Git executes the git with the provided arguments. The command is executed in the provided
 // directory path.
 func Git(path string, arguments ...string) (output []byte, err error) {
@@ -56,6 +50,7 @@ func Git(path string, arguments ...string) (output []byte, err error) {
 	}
 	cmd.Dir = path
 	cmd.Env = append(os.Environ(), "PWD="+path)
+	cmd.Stderr = os.Stderr
 
 	return cmd.Output()
 }
@@ -63,11 +58,12 @@ func Git(path string, arguments ...string) (output []byte, err error) {
 // ToModuleTag converts the relative module path and semver version string to a git tag
 // that can be used to identify the module version.
 // For example:
-//   Path: .              Version: v1.2.3 => v1.2.3
-//   Path: service/s3     Version: v0.2.3 => service/s3/v0.2.3
-//   Path: service/s3     Version: v1.2.3 => service/s3/v1.2.3
-//   Path: service/s3/v2  Version: v2.2.3 => service/s3/v2.2.3
-//   Path: service/s3/v3  Version: v2.2.3 => error
+//
+//	Path: .              Version: v1.2.3 => v1.2.3
+//	Path: service/s3     Version: v0.2.3 => service/s3/v0.2.3
+//	Path: service/s3     Version: v1.2.3 => service/s3/v1.2.3
+//	Path: service/s3/v2  Version: v2.2.3 => service/s3/v2.2.3
+//	Path: service/s3/v3  Version: v2.2.3 => error
 func ToModuleTag(modulePath string, version string) (string, error) {
 	major := semver.Major(version)
 	if len(major) == 0 {
@@ -94,11 +90,11 @@ func ToModuleTag(modulePath string, version string) (string, error) {
 // following semantic versioning rules.
 //
 // Example:
-//   . => ["v1.2.3", "v1.0.0"]
-//   v2 => ["v2.0.0"]
-//   sub/module => ["v1.2.3"]
-//   sub/module/v2 => ["v2.2.3"]
 //
+//	. => ["v1.2.3", "v1.0.0"]
+//	v2 => ["v2.0.0"]
+//	sub/module => ["v1.2.3"]
+//	sub/module/v2 => ["v2.2.3"]
 type ModuleTags map[string][]string
 
 // Latest returns the latest tag for the given relative module path. Returns false if

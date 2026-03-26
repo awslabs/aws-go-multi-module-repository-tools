@@ -45,6 +45,11 @@ func main() {
 
 	moduleTags := git.ParseModuleTags(tags)
 
+	cfg, err := repotools.LoadConfig(repoRoot)
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+
 	discoverer := gomod.NewDiscoverer(repoRoot)
 
 	if err := discoverer.Discover(); err != nil {
@@ -62,6 +67,10 @@ func main() {
 		module := it.Next()
 		if module == nil {
 			break
+		}
+
+		if mcfg, ok := cfg.Modules[module.Path()]; ok && mcfg.NoTag {
+			continue
 		}
 
 		fullPath := module.AbsPath()

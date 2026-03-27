@@ -211,7 +211,7 @@ func interactiveEdit(annotation *changelog.Annotation, modules *gomod.ModuleTree
 			sb.WriteString(issue)
 			sb.WriteRune('\n')
 		}
-		return fmt.Errorf(sb.String())
+		return fmt.Errorf("%s", sb.String())
 	}
 
 	// Ensure this didn't get swapped / changed

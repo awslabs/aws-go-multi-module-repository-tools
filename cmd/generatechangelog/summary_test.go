@@ -83,7 +83,7 @@ func Test_executeModuleTemplate(t *testing.T) {
 			}
 			gotWr := wr.String()
 			if diff := cmp.Diff(tt.wantWr, gotWr); len(diff) > 0 {
-				t.Errorf(diff)
+				t.Errorf("%s", diff)
 			}
 		})
 	}

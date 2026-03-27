@@ -146,6 +146,6 @@ func TestModuleTags_Add(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(want, moduleTags); len(diff) > 0 {
-		t.Errorf(diff)
+		t.Errorf("%s", diff)
 	}
 }

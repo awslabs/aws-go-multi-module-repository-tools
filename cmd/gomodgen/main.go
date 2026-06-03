@@ -9,7 +9,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 
 	repotools "github.com/awslabs/aws-go-multi-module-repository-tools"
 	"github.com/awslabs/aws-go-multi-module-repository-tools/gomod"
@@ -81,48 +83,69 @@ func main() {
 }
 
 func createArtifactModule(paths []string, rootModulePath string, repoRoot string) error {
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(paths))
+
 	for _, artifactPath := range paths {
-		buildManifest, err := manifest.LoadManifest(filepath.Join(artifactPath, manifestFileName))
-		if err != nil {
-			return fmt.Errorf("failed to load manifest: %w", err)
-		}
-		if !strings.HasPrefix(buildManifest.Module, rootModulePath) {
-			return fmt.Errorf("%v is not a sub-module of %v", buildManifest.Module, rootModulePath)
-		}
-
-		var targetPath string
-		if config.CopyArtifact {
-			moduleRelativePath := strings.TrimPrefix(strings.TrimPrefix(buildManifest.Module, rootModulePath), "/")
-			if moduleRelativePath == "" {
-				moduleRelativePath = "."
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := processArtifact(artifactPath, rootModulePath, repoRoot); err != nil {
+				errCh <- err
 			}
-			targetPath = filepath.Join(repoRoot, moduleRelativePath)
+		}()
+	}
 
-		} else {
-			targetPath = filepath.Join(config.BuildArtifactPath, config.PluginDirectory)
-		}
+	wg.Wait()
+	close(errCh)
 
-		if config.PrepareTargetDirectory {
-			if err := prepareTargetDirectory(targetPath, buildManifest); err != nil {
-				return fmt.Errorf("failed to prepare target directory: %w", err)
-			}
-		}
+	for err := range errCh {
+		return err
+	}
+	return nil
+}
 
-		if config.CopyArtifact {
-			if err := copyBuildArtifactToPath(artifactPath, targetPath, buildManifest); err != nil {
-				return fmt.Errorf("failed to copy build artifact to target: %w", err)
-			}
-		}
+func processArtifact(artifactPath, rootModulePath, repoRoot string) error {
+	buildManifest, err := manifest.LoadManifest(filepath.Join(artifactPath, manifestFileName))
+	if err != nil {
+		return fmt.Errorf("failed to load manifest: %w", err)
+	}
+	if !strings.HasPrefix(buildManifest.Module, rootModulePath) {
+		return fmt.Errorf("%v is not a sub-module of %v", buildManifest.Module, rootModulePath)
+	}
 
-		generated, err := generateModuleDefinition(buildManifest)
-		if err != nil {
-			return fmt.Errorf("failed to generate go module file: %w", err)
+	var targetPath string
+	if config.CopyArtifact {
+		moduleRelativePath := strings.TrimPrefix(strings.TrimPrefix(buildManifest.Module, rootModulePath), "/")
+		if moduleRelativePath == "" {
+			moduleRelativePath = "."
 		}
+		targetPath = filepath.Join(repoRoot, moduleRelativePath)
 
-		err = gomod.WriteModuleFile(targetPath, generated)
-		if err != nil {
-			return fmt.Errorf("failed to write go module file: %w", err)
+	} else {
+		targetPath = filepath.Join(config.BuildArtifactPath, config.PluginDirectory)
+	}
+
+	if config.PrepareTargetDirectory {
+		if err := prepareTargetDirectory(targetPath, buildManifest); err != nil {
+			return fmt.Errorf("failed to prepare target directory: %w", err)
 		}
+	}
+
+	if config.CopyArtifact {
+		if err := copyBuildArtifactToPath(artifactPath, targetPath, buildManifest); err != nil {
+			return fmt.Errorf("failed to copy build artifact to target: %w", err)
+		}
+	}
+
+	generated, err := generateModuleDefinition(buildManifest)
+	if err != nil {
+		return fmt.Errorf("failed to generate go module file: %w", err)
+	}
+
+	err = gomod.WriteModuleFile(targetPath, generated)
+	if err != nil {
+		return fmt.Errorf("failed to write go module file: %w", err)
 	}
 	return nil
 }
@@ -140,8 +163,15 @@ func generateModuleDefinition(m manifest.Manifest) (*modfile.File, error) {
 		return nil, fmt.Errorf("failed to set Go version: %v", err)
 	}
 
-	for depPath, depVersion := range m.Dependencies {
-		depPath := path.Clean(depPath)
+	depPaths := make([]string, 0, len(m.Dependencies))
+	for depPath := range m.Dependencies {
+		depPaths = append(depPaths, depPath)
+	}
+	sort.Strings(depPaths)
+
+	for _, depPath := range depPaths {
+		depVersion := m.Dependencies[depPath]
+		depPath = path.Clean(depPath)
 
 		if err := mod.AddRequire(depPath, depVersion); err != nil {
 			return nil, fmt.Errorf("failed to add dependency %v@%v", depPath, depVersion)

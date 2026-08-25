@@ -16,6 +16,8 @@ import (
 
 const changelogDir = ".changelog"
 
+var osRemove = os.Remove
+
 // Annotation represents a change to one or more Go modules.
 type Annotation struct {
 	// The unique identifier for this Annotation.
@@ -115,9 +117,14 @@ func WriteAnnotation(path string, annotation Annotation) (err error) {
 func RemoveAnnotation(path string, annotation Annotation) (err error) {
 	dir := filepath.Join(path, changelogDir)
 
-	name := fmt.Sprintf("%s.json", strings.ReplaceAll(annotation.ID, "-", ""))
-
-	if err := os.Remove(filepath.Join(dir, name)); err != nil && !os.IsNotExist(err) {
+	// the changelog tool doesn't use dashes but if a person or an ai tool or
+	// whatever makes the changelog they usually include them
+	name1 := fmt.Sprintf("%s.json", annotation.ID)
+	name2 := strings.ReplaceAll(name1, "-", "")
+	if err := osRemove(filepath.Join(dir, name1)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := osRemove(filepath.Join(dir, name2)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 

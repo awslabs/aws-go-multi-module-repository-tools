@@ -259,7 +259,7 @@ func copyArtifact(sourcePath, targetPath string) (err error) {
 	}
 	defer sourceFile.Close()
 
-	targetFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	targetFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
